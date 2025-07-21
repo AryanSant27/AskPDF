@@ -1,0 +1,230 @@
+/* General Body Styling */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #1a1a2e; /* Dark background */
+    color: #e0e0e0; /* Light text color */
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden; /* Hide scrollbars for background effect */
+    position: relative;
+}
+
+/* Background Blur Effect */
+body::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: url('https://source.unsplash.com/random/1920x1080/?abstract,technology,futuristic') no-repeat center center fixed; /* Dynamic background image */
+    background-size: cover;
+    filter: blur(8px); /* Subtle blur */
+    -webkit-filter: blur(8px);
+    z-index: -1; /* Behind content */
+}
+
+/* Container Styling */
+#auth-container, #app-container {
+    background-color: rgba(25, 25, 40, 0.9); /* Semi-transparent dark background */
+    padding: 40px;
+    border-radius: 15px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5); /* Stronger shadow */
+    width: 100%;
+    max-width: 1000px; /* Increased max-width */
+    box-sizing: border-box;
+    display: flex;
+    gap: 40px;
+    position: relative; /* For z-index */
+    z-index: 1;
+    border: 1px solid rgba(50, 50, 70, 0.5); /* Subtle border */
+}
+
+#app-container {
+    display: none; /* Initially hidden */
+}
+
+h2 {
+    text-align: center;
+    color: #8aff8a; /* Futuristic green */
+    margin-bottom: 30px;
+    text-shadow: 0 0 5px rgba(138, 255, 138, 0.5); /* Glow effect */
+}
+
+/* Form & Input Styling */
+input[type="text"], input[type="password"], input[type="file"] {
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 20px;
+    border: 1px solid #444466; /* Darker border */
+    border-radius: 8px;
+    box-sizing: border-box;
+    background-color: #2a2a4a; /* Dark input background */
+    color: #e0e0e0;
+    transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+input[type="text"]:focus, input[type="password"]:focus {
+    outline: none;
+    border-color: #8aff8a; /* Green focus */
+    box-shadow: 0 0 8px rgba(138, 255, 138, 0.5); /* Green glow on focus */
+}
+
+button {
+    width: 100%;
+    padding: 12px;
+    background-color: #8aff8a; /* Green button */
+    color: #1a1a2e; /* Dark text on button */
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 700;
+    transition: background-color 0.3s, transform 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+button:hover {
+    background-color: #66cc66; /* Darker green on hover */
+    transform: translateY(-2px); /* Slight lift effect */
+}
+
+/* Auth Form Specifics */
+#auth-container p {
+    text-align: center;
+    margin-top: 20px;
+    color: #b0b0b0;
+}
+
+#auth-container a {
+    color: #8aff8a;
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 0.3s;
+}
+
+#auth-container a:hover {
+    color: #66cc66;
+}
+
+/* App Container Specifics */
+#pdf-management-container {
+    flex: 1;
+    padding-right: 20px;
+    border-right: 1px solid rgba(50, 50, 70, 0.5);
+}
+
+#chat-container {
+    flex: 2;
+    display: flex;
+    flex-direction: column;
+    height: 600px; /* Adjust height as needed */
+    padding-left: 20px;
+}
+
+#pdf-upload-container {
+    margin-bottom: 30px;
+}
+
+#pdf-list-container h2 {
+    margin-top: 30px;
+    text-align: left;
+}
+
+#pdf-list {
+    list-style-type: none;
+    padding: 0;
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #444466;
+    border-radius: 8px;
+    background-color: #2a2a4a;
+}
+
+#pdf-list li {
+    padding: 12px 15px;
+    border-bottom: 1px solid #3a3a5a;
+    cursor: pointer;
+    transition: background-color 0.3s, color 0.3s;
+    font-weight: 500;
+}
+
+#pdf-list li:last-child {
+    border-bottom: none;
+}
+
+#pdf-list li:hover {
+    background-color: #3a3a5a;
+    color: #8aff8a;
+}
+
+#pdf-list li.selected {
+    background-color: #8aff8a; /* Green selected */
+    color: #1a1a2e; /* Dark text on selected */
+    font-weight: 700;
+    box-shadow: 0 0 10px rgba(138, 255, 138, 0.7); /* Stronger glow */
+}
+
+#chat-header {
+    text-align: center;
+    color: #b0b0b0;
+    font-size: 1.2em;
+    margin-bottom: 20px;
+    text-shadow: none;
+}
+
+#chat-history {
+    flex-grow: 1;
+    border: 1px solid #444466;
+    border-radius: 8px;
+    padding: 15px;
+    overflow-y: auto;
+    margin-bottom: 20px;
+    background-color: #2a2a4a;
+    display: flex;
+    flex-direction: column;
+}
+
+.message {
+    margin-bottom: 15px;
+    padding: 10px 15px;
+    border-radius: 18px;
+    max-width: 80%;
+    line-height: 1.5;
+    word-wrap: break-word;
+}
+
+.user-message {
+    background-color: #8aff8a; /* Green user message */
+    color: #1a1a2e;
+    align-self: flex-end;
+    margin-left: auto;
+    border-bottom-right-radius: 5px;
+}
+
+.model-message {
+    background-color: #444466; /* Darker model message */
+    color: #e0e0e0;
+    align-self: flex-start;
+    border-bottom-left-radius: 5px;
+}
+
+#chat-input {
+    display: flex;
+}
+
+#chat-input input {
+    flex-grow: 1;
+    margin-right: 10px;
+    margin-bottom: 0;
+}
+
+#chat-input button {
+    width: auto;
+    padding: 12px 20px;
+}
