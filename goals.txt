@@ -1,0 +1,11 @@
+Goals for AskPDF RAG Application:
+
+1.  **Backend:** Develop a Flask-based backend.
+2.  **Frontend:** Create a frontend using HTML, CSS, and JavaScript.
+3.  **Cloud Vector Database Integration:** Integrate a cloud-based vector database (to be chosen, but consider options compatible with MongoDB if possible, or a standalone vector DB).
+4.  **User Authentication:** Implement a robust user authentication system.
+5.  **Database Integration:** Integrate MongoDB as the primary database.
+6.  **LLM Integration:** Use Gemini 1.5 Flash for language model capabilities.
+7.  **Vector Embedding Caching:** Implement a caching mechanism for vector embeddings to avoid re-chunking PDFs for repeated interactions with the same document.
+8.  **Chat Feature with Context:** Develop a "chatting" feature that maintains conversation context, incorporating both the PDF content and the chat history.
+9.  **Avoid Langchain:** Do not use the Langchain package.
