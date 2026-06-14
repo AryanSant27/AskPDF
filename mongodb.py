@@ -1,8 +1,12 @@
 
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
+from dotenv import load_dotenv
+import os
 
-uri = "mongodb+srv://santaryan27:%40Aryan27@askpdf.zntzict.mongodb.net/?retryWrites=true&w=majority&appName=AskPDF" # This file was for a one-time test. Use app.py to run the application.
+load_dotenv()
+
+uri = os.getenv("MONGO_URI")
 
 # Create a new client and connect to the server
 client = MongoClient(uri)
