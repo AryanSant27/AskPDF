@@ -3,5 +3,7 @@ pymongo
 python-dotenv
 Flask-JWT-Extended
 pypdf
-sentence-transformers
 google-generativeai
+langgraph
+beautifulsoup4
+ddgs

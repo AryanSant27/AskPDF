@@ -1,116 +1,43 @@
-# AskPDF: Your AI-Powered Document Assistant
+# AskPDF: Your AI-Powered Agentic Document Assistant
 
-## 1. What it is
+AskPDF is an advanced Retrieval-Augmented Generation (RAG) application that allows users to upload PDF documents and engage in a rich conversational chat. This version introduces an **Agentic RAG multi-agent orchestration workflow** built on top of **LangGraph**, complete with Human-in-the-Loop (HITL) checkpoints.
 
-AskPDF is a Retrieval-Augmented Generation (RAG) application that allows you to upload PDF documents and then ask questions about their content. It leverages advanced AI models to understand your queries, retrieve relevant information from your uploaded PDFs, and generate coherent answers. The application features user authentication, secure document storage, and a conversational interface.
+---
 
-## 2. What tools have we used
+## 🌟 Key Features
 
-This application is built using a modern tech stack, combining robust backend services with a dynamic frontend:
+1. **Multi-Agent Orchestration (LangGraph)**:
+   - **Translation Agent**: Detects incoming query languages and translates generated answers back to the user's native tongue.
+   - **Query Decomposer Agent**: Automatically splits complex questions into distinct sub-queries.
+   - **Synthesis Agent**: Aggregates local PDF vector contexts and queries external web resources to construct a thorough, comprehensive response.
+2. **Human-in-the-Loop (HITL) Gates**:
+   - Approve, modify, or extend decomposed sub-queries and web queries directly from the UI panel before execution.
+3. **Multi-Model Load Balancing**:
+   - Request loads are distributed across `gemini-3.5-flash` (for decomposition), `gemini-3.1-flash-lite` (for synthesis), and `gemini-2.5-flash` (for translations) to prevent rate limits on free-tier API keys.
+4. **Google text-embedding-004 API**:
+   - Modernized embeddings generate high-fidelity 768-dimensional context vectors.
+5. **Modernized Premium UI/UX**:
+   - Dynamic 3-column layout featuring interactive chat history, PDF management, real-time agent console log streams, and approval drawers.
 
-*   **Backend Framework:** [Flask](https://flask.palletsprojects.com/) (Python) - For building the web application and API endpoints.
-*   **Database:** [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) - A cloud-hosted NoSQL database used for storing user data, PDF metadata, and vector embeddings.
-    *   **MongoDB Atlas Vector Search:** For efficient similarity search on PDF content embeddings.
-*   **Language Model (LLM):** [Google Gemini 1.5 Flash](https://ai.google.dev/models/gemini) - Integrated for generating answers based on retrieved PDF context and conversation history.
-*   **PDF Processing:** [PyPDF2](https://pypdf2.readthedocs.io/en/latest/) - For extracting text content from PDF documents.
-*   **Vector Embeddings:** [Sentence Transformers](https://www.sbert.net/) (`all-MiniLM-L6-v2`) - For converting text chunks from PDFs and user queries into numerical vector representations.
-*   **Authentication:** [Flask-JWT-Extended](https://flask-jwt-extended.readthedocs.io/en/stable/) - For implementing secure JSON Web Token (JWT) based user authentication.
-*   **Environment Variables:** [python-dotenv](https://pypi.org/project/python-dotenv/) - For managing environment-specific configurations and sensitive credentials.
-*   **Frontend:** HTML, CSS, and JavaScript - For building an interactive and aesthetically pleasing user interface.
+---
 
-## 3. How to use it on your device
+## 🚀 How to Run the Project
 
-Follow these steps to set up and run the AskPDF application on your local machine.
+Please refer to the detailed step-by-step setup instructions in **[INSTRUCTIONS.md](file:///E:/AskPDF%20Advanced%20Agentic%20Rag/INSTRUCTIONS.md)**.
 
-### Prerequisites
+### Quick Command:
+```powershell
+# Activate venv and run the unified server (starts both backend and frontend)
+.\venv\Scripts\Activate.ps1
+python app.py
+```
+*Go to [http://127.0.0.1:5000](http://127.0.0.1:5000) in your web browser.*
 
-*   Python 3.8+ installed
-*   `pip` (Python package installer)
-*   A MongoDB Atlas account (free tier is sufficient)
-*   A Google AI Studio API Key for Gemini 1.5 Flash
+---
 
-### Setup Steps
+## 🧪 Testing and Verification
 
-1.  **Clone the Repository:**
-    ```bash
-    git clone https://github.com/your-repo/AskPDF.git # Replace with your actual repo URL
-    cd AskPDF
-    ```
-
-2.  **Create a Virtual Environment (Recommended):**
-    ```bash
-    python -m venv venv
-    # On Windows:
-    .\venv\Scripts\activate
-    # On macOS/Linux:
-    source venv/bin/activate
-    ```
-
-3.  **Install Dependencies:**
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-4.  **Configure Environment Variables:**
-    Create a file named `.env` in the root directory of the project (same level as `app.py`). Add the following variables, replacing the placeholder values with your actual credentials:
-
-    ```
-    MONGO_URI="YOUR_MONGODB_ATLAS_CONNECTION_STRING"
-    JWT_SECRET_KEY="YOUR_VERY_SECRET_KEY_FOR_JWT"
-    GEMINI_API_KEY="YOUR_GOOGLE_GEMINI_API_KEY"
-    ```
-    *   **`YOUR_MONGODB_ATLAS_CONNECTION_STRING`**: Get this from your MongoDB Atlas cluster. Ensure you have configured Network Access to include your current IP address.
-    *   **`YOUR_VERY_SECRET_KEY_FOR_JWT`**: Generate a strong, random string for this.
-    *   **`YOUR_GOOGLE_GEMINI_API_KEY`**: Obtain this from [Google AI Studio](https://ai.google.dev/gemini-api/docs/api-key).
-
-5.  **MongoDB Atlas Configuration:**
-
-    *   **IP Access List:** In your MongoDB Atlas dashboard, go to **Network Access** and add your current IP address to allow connections from your machine.
-    *   **Create Database and Collection:** Run the Flask application (step 6) and upload at least one PDF via the frontend. This action will automatically create the `askpdf_db` database and the `embeddings` collection.
-    *   **Create Vector Search Index:**
-        *   In MongoDB Atlas, go to the **Search** tab.
-        *   Click **Create Search Index**.
-        *   Select **JSON Editor**.
-        *   **Index Name:** `pdf_embeddings_index`
-        *   **Database:** `askpdf_db`
-        *   **Collection:** `embeddings`
-        *   Paste the following JSON definition:
-            ```json
-            {
-              "fields": [
-                {
-                  "numDimensions": 384,
-                  "path": "embedding",
-                  "similarity": "cosine",
-                  "type": "vector"
-                }
-              ]
-            }
-            ```
-        *   Save the index.
-    *   **Create Standard Index on `pdf_id`:**
-        *   In MongoDB Atlas, go to **Database** -> **Collections**.
-        *   Select `askpdf_db` -> `embeddings`.
-        *   Go to the **Indexes** tab.
-        *   Click **Create Index**.
-        *   In the JSON editor for the index definition, paste:
-            ```json
-            {
-              "pdf_id": 1
-            }
-            ```
-        *   Save the index.
-
-6.  **Run the Flask Application:**
-    ```bash
-    python app.py
-    ```
-    The server will start, usually on `http://127.0.0.1:5000`.
-
-7.  **Access the Frontend:**
-    Open your web browser and navigate to `http://127.0.0.1:5000`.
-
-    *   You will be presented with a login/register screen.
-    *   Register a new user or log in with existing credentials.
-    *   Upload a PDF document.
-    *   Select an uploaded PDF from the list and start asking questions!
+A comprehensive testing suite is provided in the `tests/` folder:
+- **Unit Tests**: Run node checks using `python tests/test_units.py`
+- **Integration Tests**: Run the programmatic HITL execution simulator using `python tests/test_integration.py`
+- **Evaluation**: Generate faithfulness and answer relevancy reports using Ragas and Gemini via `python tests/evaluate_ragas.py`

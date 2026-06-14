@@ -3,46 +3,142 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AskPDF</title>
+    <title>AskPDF | Advanced Agentic RAG</title>
+    <!-- Google Fonts Outfit & JetBrains Mono -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <div id="auth-container">
-        <div id="login-form">
-            <h2>Login</h2>
-            <input type="text" id="login-username" placeholder="Username" required>
-            <input type="password" id="login-password" placeholder="Password" required>
-            <button onclick="login()">Login</button>
-            <p>Don't have an account? <a href="#" onclick="toggleAuthForms()">Register</a></p>
+    <!-- Top Header -->
+    <header class="main-header">
+        <div class="header-logo">
+            <span class="logo-icon">⚡</span>
+            <h1>AskPDF <span class="badge">Agentic v2.0</span></h1>
         </div>
-        <div id="register-form" style="display: none;">
-            <h2>Register</h2>
-            <input type="text" id="register-username" placeholder="Username" required>
-            <input type="password" id="register-password" placeholder="Password" required>
-            <button onclick="register()">Register</button>
-            <p>Already have an account? <a href="#" onclick="toggleAuthForms()">Login</a></p>
+        <div class="header-user-actions" id="header-user-actions" style="display: none;">
+            <span id="user-display">Logged in as: <strong>User</strong></span>
+            <button onclick="logout()" class="btn btn-secondary">Logout</button>
         </div>
-    </div>
+    </header>
 
-    <div id="app-container" style="display: none;">
-        <div id="pdf-management-container">
-            <div id="pdf-upload-container">
-                <h2>Upload PDF</h2>
-                <input type="file" id="pdf-file-input" accept=".pdf">
-                <button onclick="uploadPdf()">Upload</button>
+    <div class="app-wrapper">
+        <!-- Auth View -->
+        <div id="auth-container" class="glass-card auth-card">
+            <div id="login-form">
+                <h2>Welcome Back</h2>
+                <p class="subtitle">Log in to query your documents using Agentic RAG</p>
+                <div class="input-group">
+                    <input type="text" id="login-username" placeholder="Username" required autocomplete="username">
+                </div>
+                <div class="input-group">
+                    <input type="password" id="login-password" placeholder="Password" required>
+                </div>
+                <button onclick="login()" class="btn btn-primary btn-block">Login</button>
+                <p class="auth-switch">Don't have an account? <a href="#" onclick="toggleAuthForms()">Register</a></p>
             </div>
-            <div id="pdf-list-container">
-                <h2>Your Documents</h2>
-                <ul id="pdf-list"></ul>
+            
+            <div id="register-form" style="display: none;">
+                <h2>Create Account</h2>
+                <p class="subtitle">Get started with a free account</p>
+                <div class="input-group">
+                    <input type="text" id="register-username" placeholder="Username" required autocomplete="username">
+                </div>
+                <div class="input-group">
+                    <input type="password" id="register-password" placeholder="Password" required>
+                </div>
+                <button onclick="register()" class="btn btn-primary btn-block">Register</button>
+                <p class="auth-switch">Already have an account? <a href="#" onclick="toggleAuthForms()">Login</a></p>
             </div>
         </div>
-        <div id="chat-container">
-            <h2 id="chat-header">Select a Document to Start Chatting</h2>
-            <div id="chat-history"></div>
-            <div id="chat-input">
-                <input type="text" id="user-query" placeholder="Ask a question about the PDF...">
-                <button onclick="askPdf()">Send</button>
+
+        <!-- Dashboard View (Hidden until Login) -->
+        <div id="app-container" style="display: none;" class="dashboard-grid">
+            
+            <!-- Column 1: PDF Management -->
+            <div id="pdf-management-container" class="glass-card pane">
+                <div class="pane-header">
+                    <h2>Documents</h2>
+                </div>
+                
+                <div id="pdf-upload-container">
+                    <label class="file-upload-box">
+                        <input type="file" id="pdf-file-input" accept=".pdf" onchange="updateUploadLabel()">
+                        <span id="upload-label">Drag & drop or click to upload PDF</span>
+                    </label>
+                    <button onclick="uploadPdf()" class="btn btn-primary btn-block upload-btn">Upload Document</button>
+                </div>
+                
+                <div id="pdf-list-container">
+                    <h3>Your Library</h3>
+                    <ul id="pdf-list" class="styled-list"></ul>
+                </div>
             </div>
+
+            <!-- Column 2: Chat Interface -->
+            <div id="chat-container" class="glass-card pane">
+                <div class="pane-header chat-header-bar">
+                    <h2 id="chat-header">Select a Document</h2>
+                    
+                    <!-- Mode toggles -->
+                    <div class="mode-toggles-bar">
+                        <label class="switch-container">
+                            <input type="checkbox" id="agent-mode-checkbox" onchange="toggleAgentModeOptions()">
+                            <span class="switch-slider"></span>
+                            <span class="switch-label">Agentic RAG Mode</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Chat conversation logs -->
+                <div id="chat-history"></div>
+                
+                <!-- Chat query input -->
+                <div id="chat-input-bar">
+                    <input type="text" id="user-query" placeholder="Ask a question about the document..." onkeydown="handleQueryKey(event)">
+                    <button onclick="submitQuery()" class="btn btn-primary send-btn">Send</button>
+                </div>
+            </div>
+
+            <!-- Column 3: Agent Console (Conditional) -->
+            <div id="agent-console-container" class="glass-card pane agent-pane" style="display: none;">
+                <div class="pane-header">
+                    <h2>Agent Thought Console</h2>
+                    <span class="pulse-indicator status-idle" id="agent-status-indicator">Idle</span>
+                </div>
+                
+                <!-- HITL Controls (Approve/Skip/Edit) -->
+                <div id="agent-controls" class="agent-control-box" style="display: none;">
+                    <!-- Content injected by app.js -->
+                </div>
+                
+                <!-- HITL Options Configuration -->
+                <div class="agent-config-box">
+                    <h3>HITL Gates Configuration</h3>
+                    <div class="checkbox-row">
+                        <label class="checkbox-container">
+                            <input type="checkbox" id="hitl-decomp-checkbox" checked>
+                            <span class="checkmark"></span>
+                            Approve Sub-queries
+                        </label>
+                    </div>
+                    <div class="checkbox-row">
+                        <label class="checkbox-container">
+                            <input type="checkbox" id="hitl-web-checkbox" checked>
+                            <span class="checkmark"></span>
+                            Approve Web Searches
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Agent Monospace Logs -->
+                <div class="agent-logs-wrapper">
+                    <h3>Execution Logs</h3>
+                    <div id="agent-logs" class="console-output">
+                        <div class="console-line system-line">[System] Agent ready. Select a document and type a query.</div>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
 

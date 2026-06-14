@@ -4,10 +4,12 @@ from dotenv import load_dotenv
 import os
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token, JWTManager, jwt_required, get_jwt_identity
-from sentence_transformers import SentenceTransformer
 import google.generativeai as genai
 from bson.objectid import ObjectId
-from PyPDF2 import PdfReader
+from pypdf import PdfReader
+
+
+from datetime import timedelta
 
 load_dotenv()
 
@@ -15,6 +17,7 @@ app = Flask(__name__)
 
 # Flask-JWT-Extended Configuration
 app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "super-secret")  # Change this in production!
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(days=1)
 jwt = JWTManager(app)
 
 # MongoDB Configuration
@@ -34,26 +37,47 @@ pdfs_collection = db.pdfs
 embeddings_collection = db.embeddings
 conversations_collection = db.conversations # New collection for chat history
 
-# Sentence Transformer Model
-print("Loading AI model (this may take a moment)...")
-embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
-print("AI model loaded.")
-
 # Configure Gemini API
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
-    gemini_model = genai.GenerativeModel('gemini-1.5-flash')
+    gemini_model = genai.GenerativeModel('gemini-3.5-flash')
+    gemini_35_model = genai.GenerativeModel('gemini-3.5-flash')
+    gemini_31_model = genai.GenerativeModel('gemini-3.1-flash-lite')
+    gemini_25_model = genai.GenerativeModel('gemini-2.5-flash')
 else:
     print("Warning: GEMINI_API_KEY not set in .env. LLM functionality will be limited.")
     gemini_model = None
+    gemini_35_model = None
+    gemini_31_model = None
+    gemini_25_model = None
 
 def generate_embedding(text):
-    try:
-        return embedding_model.encode(text).tolist()
-    except Exception as e:
-        print(f"Error generating embedding: {e}")
+    if not GEMINI_API_KEY:
+        print("Warning: generate_embedding called but GEMINI_API_KEY is not set.")
         return None
+    import time
+    max_retries = 3
+    delay = 2.0
+    for attempt in range(max_retries):
+        try:
+            result = genai.embed_content(
+                model="models/text-embedding-004",
+                content=text,
+                task_type="retrieval_document"
+            )
+            return result['embedding']
+        except Exception as e:
+            err_str = str(e).lower()
+            if "429" in err_str or "resource_exhausted" in err_str or "quota" in err_str or "limit" in err_str:
+                if attempt < max_retries - 1:
+                    print(f"[Embedding Retry] Rate limit hit. Retrying in {delay}s... (Attempt {attempt+1}/{max_retries})")
+                    time.sleep(delay)
+                    delay *= 2.0
+                    continue
+            print(f"Error generating embedding: {e}")
+            return None
+
 
 def chunk_text(text, chunk_size=1000, overlap=200):
     chunks = []
@@ -138,6 +162,7 @@ def upload_pdf():
 
     if pdf_file and pdf_file.filename.endswith('.pdf'):
         try:
+            reader = PdfReader(pdf_file)
             text_content = ""
             for page in reader.pages:
                 text_content += page.extract_text() + "\n"
@@ -232,9 +257,9 @@ def ask_pdf():
     # Construct prompt for Gemini
     full_prompt = f"""You are a helpful assistant that answers questions based on the provided context and conversation history.\n\nContext from PDF:\n{context}\n\nConversation History:\n{chat_history}\n\nUser Query: {user_query}\n\nAnswer:"""
 
-    if gemini_model:
+    if gemini_31_model:
         try:
-            response = gemini_model.generate_content(full_prompt)
+            response = gemini_31_model.generate_content(full_prompt)
             answer = response.text
 
             # Update conversation history
@@ -256,6 +281,230 @@ def ask_pdf():
             return jsonify({"status": "error", "message": str(e)}), 500
     else:
         return jsonify({"msg": "Gemini model not configured."}), 500
+
+# --- AGENTIC RAG ROUTES ---
+
+@app.route('/agent/start', methods=['POST'])
+@jwt_required()
+def agent_start():
+    from Agent import compiled_graph
+    user_query = request.json.get('query', None)
+    pdf_id = request.json.get('pdf_id', None)
+    conversation_id = request.json.get('conversation_id', None)
+    options = request.json.get('options', {
+        "hitl_decomposer": True,
+        "hitl_web": True
+    })
+
+    if not user_query or not pdf_id:
+        return jsonify({"msg": "Missing query or pdf_id"}), 400
+
+    try:
+        pdf_object_id = ObjectId(pdf_id)
+    except:
+        return jsonify({"msg": "Invalid pdf_id format"}), 400
+
+    current_user = get_jwt_identity()
+
+    # Create new session in DB
+    session_data = {
+        "user": current_user,
+        "pdf_id": pdf_object_id,
+        "conversation_id": ObjectId(conversation_id) if conversation_id else None,
+        "original_query": user_query,
+        "status": "init",
+        "current_step": "init",
+        "logs": ["Session initialized."],
+        "options": options
+    }
+    session_id = db.agent_sessions.insert_one(session_data).inserted_id
+
+    # Create graph state
+    initial_state = {
+        "session_id": str(session_id),
+        "user": current_user,
+        "pdf_id": pdf_id,
+        "conversation_id": conversation_id,
+        "original_query": user_query,
+        "english_query": "",
+        "detected_language": "English",
+        "current_step": "init",
+        "decomposed_queries": [],
+        "web_queries": [],
+        "vector_context": "",
+        "scraped_data": [],
+        "logs": ["Starting agent workflow..."],
+        "options": options,
+        "answer": ""
+    }
+
+    config = {"configurable": {"thread_id": str(session_id)}}
+    try:
+        # Run graph until it hits an interrupt or completes
+        compiled_graph.invoke(initial_state, config)
+        
+        # Sync state with DB
+        status, current_step, state_values = save_agent_session(session_id, compiled_graph, config)
+        
+        if status == "completed":
+            # Save to chat history
+            conv_id = save_to_chat_history(conversation_id, current_user, pdf_id, user_query, state_values["answer"])
+            # Update session's conversation_id in case it was a new conversation
+            db.agent_sessions.update_one({"_id": session_id}, {"$set": {"conversation_id": ObjectId(conv_id)}})
+            return jsonify({
+                "status": "completed",
+                "session_id": str(session_id),
+                "answer": state_values["answer"],
+                "logs": state_values["logs"],
+                "conversation_id": str(conv_id)
+            }), 200
+        else:
+            return jsonify({
+                "status": "pending_approval",
+                "session_id": str(session_id),
+                "step": current_step,
+                "data": {
+                    "decomposed_queries": state_values.get("decomposed_queries", []),
+                    "web_queries": state_values.get("web_queries", [])
+                },
+                "logs": state_values["logs"]
+            }), 200
+            
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        db.agent_sessions.update_one({"_id": session_id}, {"$set": {"status": "error", "logs": [f"FATAL ERROR: {str(e)}"]}})
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/agent/approve', methods=['POST'])
+@jwt_required()
+def agent_approve():
+    from Agent import compiled_graph
+    session_id = request.json.get('session_id', None)
+    step = request.json.get('step', None)
+    data = request.json.get('data', {})
+
+    if not session_id or not step:
+        return jsonify({"msg": "Missing session_id or step"}), 400
+
+    session = db.agent_sessions.find_one({"_id": ObjectId(session_id)})
+    if not session:
+        return jsonify({"msg": "Session not found"}), 404
+
+    config = {"configurable": {"thread_id": str(session_id)}}
+    try:
+        # Update graph state with user's approved changes
+        if step == "query_decomposition":
+            decomposed = data.get("decomposed_queries", [])
+            compiled_graph.update_state(config, {"decomposed_queries": decomposed}, as_node="decompose_query")
+        elif step == "web_search":
+            web_queries = data.get("web_queries", [])
+            compiled_graph.update_state(config, {"web_queries": web_queries}, as_node="decide_web_search")
+
+        # Resume execution
+        compiled_graph.invoke(None, config)
+
+        # Sync state with DB
+        status, current_step, state_values = save_agent_session(session_id, compiled_graph, config)
+
+        if status == "completed":
+            conv_id = save_to_chat_history(session.get("conversation_id"), session.get("user"), str(session.get("pdf_id")), session.get("original_query"), state_values["answer"])
+            db.agent_sessions.update_one({"_id": ObjectId(session_id)}, {"$set": {"conversation_id": ObjectId(conv_id)}})
+            return jsonify({
+                "status": "completed",
+                "session_id": str(session_id),
+                "answer": state_values["answer"],
+                "logs": state_values["logs"],
+                "conversation_id": str(conv_id)
+            }), 200
+        else:
+            return jsonify({
+                "status": "pending_approval",
+                "session_id": str(session_id),
+                "step": current_step,
+                "data": {
+                    "decomposed_queries": state_values.get("decomposed_queries", []),
+                    "web_queries": state_values.get("web_queries", [])
+                },
+                "logs": state_values["logs"]
+            }), 200
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        db.agent_sessions.update_one({"_id": ObjectId(session_id)}, {"$set": {"status": "error", "logs": [f"FATAL ERROR: {str(e)}"]}})
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/agent/session/<session_id>', methods=['GET'])
+@jwt_required()
+def agent_session_status(session_id):
+    try:
+        session = db.agent_sessions.find_one({"_id": ObjectId(session_id)})
+        if not session:
+            return jsonify({"msg": "Session not found"}), 404
+            
+        # Convert ObjectIds to strings
+        session["_id"] = str(session["_id"])
+        session["pdf_id"] = str(session["pdf_id"])
+        if session.get("conversation_id"):
+            session["conversation_id"] = str(session["conversation_id"])
+            
+        return jsonify(session), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+def save_agent_session(session_id, graph, config):
+    state = graph.get_state(config)
+    state_values = state.values
+    
+    next_steps = list(state.next)
+    status = "completed" if not next_steps else "pending_approval"
+    
+    current_step = "synthesis"
+    if "decomposer_approval_gate" in next_steps:
+        current_step = "query_decomposition"
+    elif "web_search_approval_gate" in next_steps:
+        current_step = "web_search"
+        
+    db.agent_sessions.update_one(
+        {"_id": ObjectId(session_id)},
+        {
+            "$set": {
+                "status": status,
+                "current_step": current_step,
+                "decomposed_queries": state_values.get("decomposed_queries", []),
+                "web_queries": state_values.get("web_queries", []),
+                "vector_context": state_values.get("vector_context", ""),
+                "scraped_data": state_values.get("scraped_data", []),
+                "logs": state_values.get("logs", []),
+                "answer": state_values.get("answer", ""),
+                "detected_language": state_values.get("detected_language", "English"),
+                "english_query": state_values.get("english_query", "")
+            }
+        },
+        upsert=True
+    )
+    return status, current_step, state_values
+
+
+def save_to_chat_history(conversation_id, user, pdf_id, user_query, model_answer):
+    if conversation_id:
+        db.conversations.update_one(
+            {"_id": ObjectId(conversation_id)},
+            {"$push": {"history": {"user": user_query, "model": model_answer}}}
+        )
+        return conversation_id
+    else:
+        new_conv = {
+            "user": user,
+            "pdf_id": ObjectId(pdf_id),
+            "history": [{"user": user_query, "model": model_answer}]
+        }
+        inserted_id = db.conversations.insert_one(new_conv).inserted_id
+        return inserted_id
 
 if __name__ == '__main__':
     app.run(debug=False)
